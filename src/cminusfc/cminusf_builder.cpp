@@ -16,6 +16,11 @@ Type* TyVoid;
 Type* TyInt32Ptr;
 Type* TyFloatPtr;
 
+Type* tmp_Type;
+AllocaInst* tmp_AllocaInst;
+std::string tmp_string;
+bool tmp_bool;
+
 // auxiliary functions here
 Type* CminusType2Type(CminusType ctype){
     if(ctype == TYPE_INT)
@@ -102,12 +107,69 @@ void CminusfBuilder::visit(ASTVarDeclaration &node) {
         value = builder->create_alloca(type);
     }
 
-    scope.push(node.id, value);
+    if(!scope.push(node.id, value)){
+        LOG(ERROR) << "variable name declared twice in this scope";
+    }
 }
 
-void CminusfBuilder::visit(ASTFunDeclaration &node) { }
+void CminusfBuilder::visit(ASTFunDeclaration &node) { 
+    std::vector<Type*> types;
+    std::vector<std::string> ids;
+    std::vector<Value*> values;
+    Function* function;
 
-void CminusfBuilder::visit(ASTParam &node) { }
+    for(auto param : node.params){
+        param->accept(*this);
+
+        if(FunctionType::is_valid_argument_type(tmp_Type)){
+            types.push_back(tmp_Type);
+        }
+        else{
+            LOG(ERROR)<< "invalid argument type";
+            return;
+        }
+
+        ids.push_back(tmp_string);
+    }
+
+    function = Function::create(FunctionType::get(CminusType2Type(node.type), types), node.id, module.get());
+    if(!scope.push(node.id, function)){
+        LOG(ERROR) << "function name declared twice";
+        return;
+    }
+    scope.enter();
+    tmp_bool = false;
+    builder->set_insert_point(BasicBlock::create(module.get(), node.id, function));
+
+    for(auto iter=function->arg_begin(); iter != function->arg_end(); iter++) {
+        values.push_back(*iter);
+    }
+    auto retAlloc = builder->create_alloca(CminusType2Type(node.type));
+    tmp_AllocaInst = retAlloc;
+    
+    for(int i=0;i < values.size();i++){
+        auto argAlloc = builder->create_alloca(types[i]);
+        builder->create_store(values[i], argAlloc);
+        if(!scope.push(ids[i], values[i])){
+            LOG(ERROR) << "argument name declared twice in this function";
+            return;
+        }
+    }
+
+    node.compound_stmt->accept(*this);
+    scope.exit();
+}
+
+void CminusfBuilder::visit(ASTParam &node) { 
+    tmp_string = node.id;
+    
+    if(node.isarray){
+        tmp_Type = CminusType2TypePtr(node.type);
+    }
+    else{
+        tmp_Type = CminusType2Type(node.type);
+    }
+}
 
 void CminusfBuilder::visit(ASTCompoundStmt &node) { }
 
