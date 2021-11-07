@@ -19,6 +19,7 @@ Type* TyFloatPtr;
 Type* tmp_Type;
 AllocaInst* tmp_AllocaInst;
 std::string tmp_string;
+Function* tmp_Function;
 bool tmp_bool;
 
 // auxiliary functions here
@@ -133,6 +134,7 @@ void CminusfBuilder::visit(ASTFunDeclaration &node) {
     }
 
     function = Function::create(FunctionType::get(CminusType2Type(node.type), types), node.id, module.get());
+    tmp_Function = function;
     if(!scope.push(node.id, function)){
         LOG(ERROR) << "function name declared twice";
         return;
@@ -171,7 +173,29 @@ void CminusfBuilder::visit(ASTParam &node) {
     }
 }
 
-void CminusfBuilder::visit(ASTCompoundStmt &node) { }
+void CminusfBuilder::visit(ASTCompoundStmt &node) { 
+    bool flag;
+    
+    if(tmp_bool){
+        scope.enter();
+        flag = true;
+    }
+    else{
+        tmp_bool = true;
+        flag = false;
+    }
+
+    for(auto local_declaration : node.local_declarations){
+        local_declaration->accept(*this);
+    }
+    for(auto statement : node.statement_list){
+        statement->accept(*this);
+    }
+
+    if(flag){
+        scope.exit();
+    }
+}
 
 void CminusfBuilder::visit(ASTExpressionStmt &node) { }
 
