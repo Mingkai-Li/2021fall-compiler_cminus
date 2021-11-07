@@ -16,8 +16,6 @@ Type* TyVoid;
 Type* TyInt32Ptr;
 Type* TyFloatPtr;
 
-std::vector<std::string> functions;
-
 // auxiliary functions here
 Type* CminusType2Type(CminusType ctype){
     if(ctype == TYPE_INT)
@@ -59,12 +57,7 @@ Type* CminusType2TypePtr(CminusType ctype){
  * scope.find: find and return the value bound to the name
  */
 
-void CminusfBuilder::visit(ASTProgram &node) { 
-    functions.push_back("input");
-    functions.push_back("output");
-    functions.push_back("outputFloat");
-    functions.push_back("neg_idx_except");
-    
+void CminusfBuilder::visit(ASTProgram &node) {
     TyInt32 = Type::get_int32_type(module.get());
     TyInt32Ptr = Type::get_int32_ptr_type(module.get());
     TyFloat = Type::get_float_type(module.get());
@@ -101,20 +94,15 @@ void CminusfBuilder::visit(ASTVarDeclaration &node) {
         }
     }
 
-    if(scope.find(node.id) == nullptr){
-        if(scope.in_global()){
-            auto initializer = ConstantZero::get(type, module.get());
-            value = GlobalVariable::create(node.id, module.get(), type, false, initializer);
-        }
-        else{
-            value = builder->create_alloca(type);
-        }
-
-        scope.push(node.id, value);
+    if(scope.in_global()){
+        auto initializer = ConstantZero::get(type, module.get());
+        value = GlobalVariable::create(node.id, module.get(), type, false, initializer);
     }
     else{
-        LOG(ERROR) << "varible name declared twice in this scope";
+        value = builder->create_alloca(type);
     }
+
+    scope.push(node.id, value);
 }
 
 void CminusfBuilder::visit(ASTFunDeclaration &node) { }
