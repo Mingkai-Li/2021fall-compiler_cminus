@@ -18,6 +18,7 @@ Type* TyFloatPtr;
 
 Type* tmp_Type;
 AllocaInst* tmp_AllocaInst;
+Value* tmp_Value;
 std::string tmp_string;
 Function* tmp_Function;
 bool tmp_bool;
@@ -55,6 +56,59 @@ Type* CminusType2TypePtr(CminusType ctype){
         return nullptr;
 }
 
+CminusType TypeID2CminusType(int type){
+    if(type == 2){
+        return TYPE_INT;
+    }
+    else if(type == 6){
+        return TYPE_FLOAT;
+    }
+    else{
+        return TYPE_VOID;
+    }
+}
+
+CminusType TypeTansfer(Value* lvalue, Value* rvalue, IRBuilder* builder, bool left_first){
+    CminusType ltype = TypeID2CminusType(lvalue->get_type()->get_type_id());
+    CminusType rtype = TypeID2CminusType(rvalue->get_type()->get_type_id());
+
+    // error checking
+    if(ltype == TYPE_VOID){
+        LOG(ERROR) << "factor type is neither INT or FP";
+        return ltype;
+    }
+    if(rtype == TYPE_VOID){
+        LOG(ERROR) << "factor type is neither INT or FP";
+        return rtype;
+    }
+    // same type
+    if(ltype == rtype){
+        return ltype;
+    }
+
+    // type transfer
+    if(left_first){
+        if(ltype == TYPE_INT){
+            rvalue = builder->create_fptosi(rvalue, TyInt32);
+        }
+        else{
+            rvalue = builder->create_sitofp(rvalue, TyFloat);
+        }
+
+        return ltype;
+    }
+    else{
+        if(ltype == TYPE_INT){
+            lvalue = builder->create_sitofp(lvalue, TyFloat);
+        }
+        else{
+            rvalue = builder->create_sitofp(rvalue, TyFloat);
+        }
+
+        return TYPE_FLOAT;
+    }
+}
+
 /*
  * use CMinusfBuilder::Scope to construct scopes
  * scope.enter: enter a new scope
@@ -79,12 +133,21 @@ void CminusfBuilder::visit(ASTProgram &node) {
     }
 }
 
-void CminusfBuilder::visit(ASTNum &node) { }
+void CminusfBuilder::visit(ASTNum &node) { 
+    // type is either INT or FP, guaranteed by parsing
+    if(node.type == TYPE_INT){
+        tmp_Value = CONST_INT(node.i_val);
+    }
+    else{
+        tmp_Value = CONST_FP(node.f_val);
+    }
+}
 
 void CminusfBuilder::visit(ASTVarDeclaration &node) { 
     Type* type;
     Value* value;
 
+    //get type
     if(node.num == nullptr){
         if(node.type == TYPE_VOID){
             LOG(ERROR) << "variable declared with void type";
@@ -100,6 +163,7 @@ void CminusfBuilder::visit(ASTVarDeclaration &node) {
         }
     }
 
+    //get value
     if(scope.in_global()){
         auto initializer = ConstantZero::get(type, module.get());
         value = GlobalVariable::create(node.id, module.get(), type, false, initializer);
@@ -122,6 +186,7 @@ void CminusfBuilder::visit(ASTFunDeclaration &node) {
     for(auto param : node.params){
         param->accept(*this);
 
+        // fill type vector
         if(FunctionType::is_valid_argument_type(tmp_Type)){
             types.push_back(tmp_Type);
         }
@@ -130,6 +195,7 @@ void CminusfBuilder::visit(ASTFunDeclaration &node) {
             return;
         }
 
+        // fill id vector
         ids.push_back(tmp_string);
     }
 
@@ -140,18 +206,24 @@ void CminusfBuilder::visit(ASTFunDeclaration &node) {
         return;
     }
     scope.enter();
-    tmp_bool = false;
+    tmp_bool = false; // no need to enter scope in compoundStmt 
     builder->set_insert_point(BasicBlock::create(module.get(), node.id, function));
 
+    // get param values
     for(auto iter=function->arg_begin(); iter != function->arg_end(); iter++) {
         values.push_back(*iter);
     }
+
+    // return value
     auto retAlloc = builder->create_alloca(CminusType2Type(node.type));
     tmp_AllocaInst = retAlloc;
     
+    // parameter value
     for(int i=0;i < values.size();i++){
         auto argAlloc = builder->create_alloca(types[i]);
         builder->create_store(values[i], argAlloc);
+
+        // push <id, value> into current scope
         if(!scope.push(ids[i], values[i])){
             LOG(ERROR) << "argument name declared twice in this function";
             return;
@@ -165,6 +237,11 @@ void CminusfBuilder::visit(ASTFunDeclaration &node) {
 void CminusfBuilder::visit(ASTParam &node) { 
     tmp_string = node.id;
     
+    if(node.type == TYPE_VOID){
+        LOG(ERROR) << "parameter type declared as void or void*";
+        return;
+    }
+
     if(node.isarray){
         tmp_Type = CminusType2TypePtr(node.type);
     }
@@ -174,7 +251,7 @@ void CminusfBuilder::visit(ASTParam &node) {
 }
 
 void CminusfBuilder::visit(ASTCompoundStmt &node) { 
-    bool flag;
+    bool flag; // flag indicating need of exit
     
     if(tmp_bool){
         scope.enter();
@@ -197,7 +274,10 @@ void CminusfBuilder::visit(ASTCompoundStmt &node) {
     }
 }
 
-void CminusfBuilder::visit(ASTExpressionStmt &node) { }
+void CminusfBuilder::visit(ASTExpressionStmt &node) { 
+    if(node.expression != nullptr)
+        node.expression->accept(*this);
+}
 
 void CminusfBuilder::visit(ASTSelectionStmt &node) { }
 
@@ -205,11 +285,82 @@ void CminusfBuilder::visit(ASTIterationStmt &node) { }
 
 void CminusfBuilder::visit(ASTReturnStmt &node) { }
 
-void CminusfBuilder::visit(ASTVar &node) { }
+void CminusfBuilder::visit(ASTVar &node) { 
+    Value* value = scope.find(node.id);
 
-void CminusfBuilder::visit(ASTAssignExpression &node) { }
+    if(node.expression == nullptr){
+        tmp_Value = value;
+    }
+    else{
+        node.expression->accept(*this);
+        tmp_Value = builder->create_gep(value, {CONST_INT(0), tmp_Value});
+    }
+}
 
-void CminusfBuilder::visit(ASTSimpleExpression &node) { }
+void CminusfBuilder::visit(ASTAssignExpression &node) { 
+    node.var->accept(*this);
+    Value* lvalue = tmp_Value;
+    node.expression->accept(*this);
+    Value* rvalue = tmp_Value;
+
+    TypeTansfer(lvalue, rvalue, builder, true);
+    builder->create_store(rvalue, lvalue);
+    tmp_Value = rvalue;
+}
+
+void CminusfBuilder::visit(ASTSimpleExpression &node) { 
+    if(node.additive_expression_r == nullptr){
+        node.additive_expression_l->accept(*this);
+    }
+    else{
+        node.additive_expression_l->accept(*this);
+        Value* lvalue = tmp_Value;
+        node.additive_expression_r->accept(*this);
+        Value* rvalue = tmp_Value;
+        
+        CminusType type = TypeTansfer(lvalue, rvalue, builder, false);
+        if(type == TYPE_INT){
+           if(node.op == OP_LT){
+               tmp_Value = builder->create_icmp_lt(lvalue, rvalue);
+           }
+           else if(node.op == OP_LE){
+               tmp_Value = builder->create_icmp_le(lvalue, rvalue);
+           }
+           else if(node.op == OP_GT){
+               tmp_Value == builder->create_icmp_gt(lvalue, rvalue);
+           }
+           else if(node.op == OP_GE){
+               tmp_Value == builder->create_icmp_ge(lvalue, rvalue);
+           }
+           else if(node.op == OP_EQ){
+               tmp_Value = builder->create_icmp_eq(lvalue, rvalue);
+           }
+           else{
+               tmp_Value == builder->create_icmp_ne(lvalue, rvalue);
+           }
+        }
+        else{
+            if(node.op == OP_LT){
+               tmp_Value = builder->create_fcmp_lt(lvalue, rvalue);
+           }
+           else if(node.op == OP_LE){
+               tmp_Value = builder->create_fcmp_le(lvalue, rvalue);
+           }
+           else if(node.op == OP_GT){
+               tmp_Value == builder->create_fcmp_gt(lvalue, rvalue);
+           }
+           else if(node.op == OP_GE){
+               tmp_Value == builder->create_fcmp_ge(lvalue, rvalue);
+           }
+           else if(node.op == OP_EQ){
+               tmp_Value = builder->create_fcmp_eq(lvalue, rvalue);
+           }
+           else{
+               tmp_Value == builder->create_fcmp_ne(lvalue, rvalue);
+           }
+        }
+    }
+}
 
 void CminusfBuilder::visit(ASTAdditiveExpression &node) { }
 
