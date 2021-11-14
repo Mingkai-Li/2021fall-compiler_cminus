@@ -69,7 +69,7 @@ CminusType TypeID2CminusType(int type){
     }
 }
 
-CminusType TypeTansfer(Value* lvalue, Value* rvalue, IRBuilder* builder, bool left_first){
+CminusType TypeTansfer(Value* &lvalue, Value* &rvalue, IRBuilder* builder, bool left_first){
     CminusType ltype = TypeID2CminusType(lvalue->get_type()->get_type_id());
     CminusType rtype = TypeID2CminusType(rvalue->get_type()->get_type_id());
 
@@ -107,6 +107,29 @@ CminusType TypeTansfer(Value* lvalue, Value* rvalue, IRBuilder* builder, bool le
         }
 
         return TYPE_FLOAT;
+    }
+}
+
+CminusType TypeTansfer(CminusType type, Value* &value, IRBuilder* builder){
+    CminusType value_type = TypeID2CminusType(value->get_type()->get_type_id());
+
+    if(value_type == TYPE_VOID){
+        LOG(ERROR) << "return value type declared neither int nor float";
+        return TYPE_VOID;
+    }
+
+    if(value_type == type){
+        return type;
+    }
+    else{
+        if(type == TYPE_INT){
+            value = builder->create_fptosi(value, TyInt32);
+        }
+        else{
+            value = builder->create_sitofp(value, TyFloat);
+        }
+
+        return type;
     }
 }
 
@@ -290,7 +313,22 @@ void CminusfBuilder::visit(ASTSelectionStmt &node) { }
 
 void CminusfBuilder::visit(ASTIterationStmt &node) { }
 
-void CminusfBuilder::visit(ASTReturnStmt &node) { }
+void CminusfBuilder::visit(ASTReturnStmt &node) { 
+    return_bool = true;
+
+    if(node.expression == nullptr){
+        builder->create_void_ret();
+    }
+    else{
+        node.expression->accept(*this);
+        Value* ret_value = tmp_Value;
+        CminusType ret_type = TypeID2CminusType(tmp_Function->get_return_type()->get_type_id());
+
+        TypeTansfer(ret_type, ret_value, builder);
+        builder->create_store(ret_value, tmp_AllocaInst);
+        builder->create_ret(ret_value);
+    }
+}
 
 void CminusfBuilder::visit(ASTVar &node) { 
     Value* value = scope.find(node.id);
