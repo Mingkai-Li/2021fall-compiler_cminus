@@ -22,6 +22,7 @@ Value* tmp_Value;
 std::string tmp_string;
 Function* tmp_Function;
 bool tmp_bool;
+bool return_bool;
 
 // auxiliary functions here
 Type* CminusType2Type(CminusType ctype){
@@ -265,8 +266,14 @@ void CminusfBuilder::visit(ASTCompoundStmt &node) {
     for(auto local_declaration : node.local_declarations){
         local_declaration->accept(*this);
     }
+    
+    return_bool = false;
     for(auto statement : node.statement_list){
         statement->accept(*this);
+        if(return_bool){
+            return_bool = false;
+            break;
+        }
     }
 
     if(flag){
