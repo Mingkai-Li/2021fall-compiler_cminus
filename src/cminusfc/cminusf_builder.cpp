@@ -239,8 +239,10 @@ void CminusfBuilder::visit(ASTFunDeclaration &node) {
     }
 
     // return value
-    auto retAlloc = builder->create_alloca(CminusType2Type(node.type));
-    tmp_AllocaInst = retAlloc;
+    if(node.type != TYPE_VOID){
+        auto retAlloc = builder->create_alloca(CminusType2Type(node.type));
+        tmp_AllocaInst = retAlloc;
+    }
     
     // parameter value
     for(int i=0;i < values.size();i++){
