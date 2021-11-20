@@ -546,6 +546,8 @@ void CminusfBuilder::visit(ASTSimpleExpression &node) {
                tmp_Value == builder->create_fcmp_ne(lvalue, rvalue);
            }
         }
+
+        tmp_Value = builder->create_zext(tmp_Value, TyInt32);
     }
 }
 
