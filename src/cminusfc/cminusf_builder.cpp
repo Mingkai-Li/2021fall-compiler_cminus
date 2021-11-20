@@ -201,7 +201,7 @@ void CminusfBuilder::visit(ASTVarDeclaration &node) {
 void CminusfBuilder::visit(ASTFunDeclaration &node) { 
     std::vector<Type*> types;
     std::vector<std::string> ids;
-    std::vector<Value*> values;
+    std::vector<Value*> args;
     Function* function;
 
     for(auto param : node.params){
@@ -230,9 +230,9 @@ void CminusfBuilder::visit(ASTFunDeclaration &node) {
     tmp_bool = false; // no need to enter scope in compoundStmt 
     builder->set_insert_point(BasicBlock::create(module.get(), node.id, function));
 
-    // get param values
+    // get args(param)
     for(auto iter=function->arg_begin(); iter != function->arg_end(); iter++) {
-        values.push_back(*iter);
+        args.push_back(*iter);
     }
 
     // return value
@@ -242,12 +242,12 @@ void CminusfBuilder::visit(ASTFunDeclaration &node) {
     }
     
     // parameter value
-    for(int i=0;i < values.size();i++){
+    for(int i=0;i < args.size();i++){
         auto argAlloc = builder->create_alloca(types[i]);
-        builder->create_store(values[i], argAlloc);
+        builder->create_store(args[i], argAlloc);
 
         // push <id, value> into current scope
-        if(!scope.push(ids[i], values[i])){
+        if(!scope.push(ids[i], args[i])){
             LOG(ERROR) << "argument name declared twice in this function";
             return;
         }
@@ -306,9 +306,71 @@ void CminusfBuilder::visit(ASTExpressionStmt &node) {
         node.expression->accept(*this);
 }
 
-void CminusfBuilder::visit(ASTSelectionStmt &node) { }
+void CminusfBuilder::visit(ASTSelectionStmt &node) {
+    node.expression->accept(*this);
+    Value* cond;
+    if(tmp_Value->get_type()->is_integer_type()){
+        cond = builder->create_icmp_ne(CONST_INT(0), tmp_Value);          
+    }
+    else if(tmp_Value->get_type()->is_float_type()){
+        cond = builder->create_fcmp_ne(CONST_INT(0), tmp_Value);
+    }
+    else{
+        LOG(ERROR) << "cond expression not int or float";
+    }
+    
+        
+    auto trueBB = BasicBlock::create(module.get(), "", tmp_Function);
+    auto doneBB = BasicBlock::create(module.get(), "", tmp_Function);
+    
+    if(node.else_statement != nullptr){
+        auto falseBB = BasicBlock::create(module.get(), "", tmp_Function);
 
-void CminusfBuilder::visit(ASTIterationStmt &node) { }
+        builder->create_cond_br(cond, trueBB, falseBB);
+        
+        builder->set_insert_point(trueBB);
+        node.if_statement->accept(*this);
+
+        builder->set_insert_point(falseBB);
+        node.else_statement->accept(*this);
+    }
+    else{
+        builder->create_cond_br(cond, trueBB, doneBB);
+
+        builder->set_insert_point(trueBB);
+        node.if_statement->accept(*this);
+        
+    }
+
+    builder->set_insert_point(doneBB);
+}
+
+void CminusfBuilder::visit(ASTIterationStmt &node) {
+    auto whileBB = BasicBlock::create(module.get(), "", tmp_Function);
+    auto doBB = BasicBlock::create(module.get(), "", tmp_Function);
+    auto doneBB = BasicBlock::create(module.get(), "", tmp_Function);
+    
+    Value* cond;
+
+    builder->set_insert_point(whileBB);
+    node.expression->accept(*this);
+
+    if(tmp_Value->get_type()->is_integer_type()){
+        cond = builder->create_icmp_ne(CONST_INT(0), tmp_Value);          
+    }
+    else if(tmp_Value->get_type()->is_float_type()){
+        cond = builder->create_fcmp_ne(CONST_INT(0), tmp_Value);
+    }
+    else{
+        LOG(ERROR) << "cond expression not int or float";
+    }
+    builder->create_cond_br(cond, doBB, doneBB);
+
+    builder->set_insert_point(doBB);
+    node.statement->accept(*this);
+
+    builder->set_insert_point(doneBB);
+}
 
 void CminusfBuilder::visit(ASTReturnStmt &node) { 
     if(node.expression == nullptr){
@@ -534,7 +596,7 @@ void CminusfBuilder::visit(ASTTerm &node) {
 
 void CminusfBuilder::visit(ASTCall &node) { 
     Function * call_fun = static_cast<Function *>(scope.find(node.id));
-    std::vector<Value*> values;
+    std::vector<Value*> args;
     auto arg_type_iter = call_fun->get_function_type()->param_begin();
 
     for(auto arg : node.args){
@@ -550,9 +612,9 @@ void CminusfBuilder::visit(ASTCall &node) {
             }
         }
 
-        values.push_back(value);
+        args.push_back(value);
         arg_type_iter++;
     }
 
-    tmp_Value = builder->create_call(call_fun, values);
+    tmp_Value = builder->create_call(call_fun, args);
 }
