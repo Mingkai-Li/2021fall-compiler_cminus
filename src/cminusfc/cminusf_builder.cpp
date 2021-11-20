@@ -514,16 +514,16 @@ void CminusfBuilder::visit(ASTSimpleExpression &node) {
                tmp_Value = builder->create_icmp_le(lvalue, rvalue);
            }
            else if(node.op == OP_GT){
-               tmp_Value == builder->create_icmp_gt(lvalue, rvalue);
+               tmp_Value = builder->create_icmp_gt(lvalue, rvalue);
            }
            else if(node.op == OP_GE){
-               tmp_Value == builder->create_icmp_ge(lvalue, rvalue);
+               tmp_Value = builder->create_icmp_ge(lvalue, rvalue);
            }
            else if(node.op == OP_EQ){
                tmp_Value = builder->create_icmp_eq(lvalue, rvalue);
            }
            else{
-               tmp_Value == builder->create_icmp_ne(lvalue, rvalue);
+               tmp_Value = builder->create_icmp_ne(lvalue, rvalue);
            }
         }
         else{
@@ -534,16 +534,16 @@ void CminusfBuilder::visit(ASTSimpleExpression &node) {
                tmp_Value = builder->create_fcmp_le(lvalue, rvalue);
            }
            else if(node.op == OP_GT){
-               tmp_Value == builder->create_fcmp_gt(lvalue, rvalue);
+               tmp_Value = builder->create_fcmp_gt(lvalue, rvalue);
            }
            else if(node.op == OP_GE){
-               tmp_Value == builder->create_fcmp_ge(lvalue, rvalue);
+               tmp_Value = builder->create_fcmp_ge(lvalue, rvalue);
            }
            else if(node.op == OP_EQ){
                tmp_Value = builder->create_fcmp_eq(lvalue, rvalue);
            }
            else{
-               tmp_Value == builder->create_fcmp_ne(lvalue, rvalue);
+               tmp_Value = builder->create_fcmp_ne(lvalue, rvalue);
            }
         }
 
