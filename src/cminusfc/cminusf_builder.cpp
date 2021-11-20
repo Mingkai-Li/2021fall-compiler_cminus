@@ -313,10 +313,10 @@ void CminusfBuilder::visit(ASTSelectionStmt &node) {
         cond = builder->create_icmp_ne(CONST_INT(0), tmp_Value);          
     }
     else if(tmp_Value->get_type()->is_float_type()){
-        cond = builder->create_fcmp_ne(CONST_INT(0), tmp_Value);
+        cond = builder->create_fcmp_ne(CONST_FP(0.), tmp_Value);
     }
     else{
-        LOG(ERROR) << "cond expression not int or float";
+        LOG(ERROR) << "cond expression neither int nor float";
     }
     
         
@@ -331,8 +331,16 @@ void CminusfBuilder::visit(ASTSelectionStmt &node) {
         builder->set_insert_point(trueBB);
         node.if_statement->accept(*this);
 
+        if(builder->get_insert_block()->get_terminator() == nullptr){
+            builder->create_br(doneBB);
+        }
+
         builder->set_insert_point(falseBB);
         node.else_statement->accept(*this);
+
+        if(builder->get_insert_block()->get_terminator() == nullptr){
+            builder->create_br(doneBB);
+        }
     }
     else{
         builder->create_cond_br(cond, trueBB, doneBB);
@@ -340,6 +348,9 @@ void CminusfBuilder::visit(ASTSelectionStmt &node) {
         builder->set_insert_point(trueBB);
         node.if_statement->accept(*this);
         
+        if(builder->get_insert_block()->get_terminator() == nullptr){
+            builder->create_br(doneBB);
+        }
     }
 
     builder->set_insert_point(doneBB);
@@ -359,15 +370,19 @@ void CminusfBuilder::visit(ASTIterationStmt &node) {
         cond = builder->create_icmp_ne(CONST_INT(0), tmp_Value);          
     }
     else if(tmp_Value->get_type()->is_float_type()){
-        cond = builder->create_fcmp_ne(CONST_INT(0), tmp_Value);
+        cond = builder->create_fcmp_ne(CONST_FP(0.), tmp_Value);
     }
     else{
-        LOG(ERROR) << "cond expression not int or float";
+        LOG(ERROR) << "cond expression neither int nor float";
     }
     builder->create_cond_br(cond, doBB, doneBB);
 
     builder->set_insert_point(doBB);
     node.statement->accept(*this);
+
+    if(builder->get_insert_block()->get_terminator() == nullptr){
+        builder->create_br(whileBB);
+    }
 
     builder->set_insert_point(doneBB);
 }
