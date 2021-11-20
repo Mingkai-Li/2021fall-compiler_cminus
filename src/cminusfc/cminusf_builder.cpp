@@ -532,4 +532,27 @@ void CminusfBuilder::visit(ASTTerm &node) {
     }
 }
 
-void CminusfBuilder::visit(ASTCall &node) { }
+void CminusfBuilder::visit(ASTCall &node) { 
+    Function * call_fun = static_cast<Function *>(scope.find(node.id));
+    std::vector<Value*> values;
+    auto arg_type_iter = call_fun->get_function_type()->param_begin();
+
+    for(auto arg : node.args){
+        arg->accept(*this);
+        Value* value = tmp_Value;
+
+        if(value->get_type()->is_integer_type() || value->get_type()->is_float_type()){
+            if(*arg_type_iter == TyInt32){
+                TypeTansfer(TYPE_INT, value, builder); 
+            }
+            else if(*arg_type_iter == TyFloat){
+                TypeTansfer(TYPE_FLOAT, value, builder);
+            }
+        }
+
+        values.push_back(value);
+        arg_type_iter++;
+    }
+
+    tmp_Value = builder->create_call(call_fun, values);
+}
