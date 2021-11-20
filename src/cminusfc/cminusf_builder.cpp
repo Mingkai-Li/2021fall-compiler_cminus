@@ -409,7 +409,7 @@ void CminusfBuilder::visit(ASTAssignExpression &node) {
     is_lvalue = true;
     node.var->accept(*this);
     Value* lvalue = tmp_Value;
-    
+
     node.expression->accept(*this);
     Value* rvalue = tmp_Value;
 
@@ -472,8 +472,64 @@ void CminusfBuilder::visit(ASTSimpleExpression &node) {
     }
 }
 
-void CminusfBuilder::visit(ASTAdditiveExpression &node) { }
+void CminusfBuilder::visit(ASTAdditiveExpression &node) { 
+    if(node.additive_expression == nullptr){
+        node.term->accept(*this);
+    }
+    else{
+        node.additive_expression->accept(*this);
+        Value* lvalue =  tmp_Value;
+        node.term->accept(*this);
+        Value* rvalue = tmp_Value;
+        CminusType type = TypeTansfer(lvalue, rvalue, builder, false);
 
-void CminusfBuilder::visit(ASTTerm &node) { }
+        if(type == TYPE_INT){
+            if(node.op == OP_PLUS){
+                tmp_Value = builder->create_iadd(lvalue, rvalue);
+            }
+            else{
+                tmp_Value = builder->create_isub(lvalue, rvalue);
+            }
+        }
+        else{
+            if(node.op == OP_PLUS){
+                tmp_Value = builder->create_fadd(lvalue, rvalue);
+            }
+            else{
+                tmp_Value = builder->create_fsub(lvalue, rvalue);
+            }
+        }
+    }
+}
+
+void CminusfBuilder::visit(ASTTerm &node) { 
+    if(node.term == nullptr){
+        node.factor->accept(*this);
+    }
+    else{
+        node.term->accept(*this);
+        Value* lvalue = tmp_Value;
+        node.factor->accept(*this);
+        Value* rvalue = tmp_Value;
+        CminusType type = TypeTansfer(lvalue, rvalue, builder, false);
+
+        if(type == TYPE_INT){
+            if(node.op == OP_MUL){
+                tmp_Value = builder->create_imul(lvalue, rvalue);
+            }
+            else{
+                tmp_Value = builder->create_isdiv(lvalue, rvalue);
+            }
+        }
+        else{
+            if(node.op == OP_MUL){
+                tmp_Value = builder->create_fmul(lvalue, rvalue);
+            }
+            else{
+                tmp_Value = builder->create_fdiv(lvalue, rvalue);
+            }
+        }
+    }
+}
 
 void CminusfBuilder::visit(ASTCall &node) { }
