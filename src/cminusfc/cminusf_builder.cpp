@@ -429,24 +429,21 @@ void CminusfBuilder::visit(ASTVar &node) {
     else{
         node.expression->accept(*this);
         Value* expr = tmp_Value;
+        TypeTansfer(TYPE_INT, expr, builder);
 
         // check if is negative index
         Value* is_neg;
 
-        if(expr->get_type()->is_integer_type()){
-            is_neg = builder->create_icmp_lt(expr, CONST_INT(0));
-        }
-        else{
-            is_neg = builder->create_fcmp_lt(expr, CONST_FP(0.));
-        }
+        is_neg = builder->create_icmp_lt(expr, CONST_INT(0));
+        
         auto neg_bb = BasicBlock::create(module.get(), "neg_bb", tmp_Function);
         auto pos_bb = BasicBlock::create(module.get(), "pos_bb", tmp_Function);
         builder->create_cond_br(is_neg, neg_bb, pos_bb);
 
         // neg_bb
         builder->set_insert_point(neg_bb);
-        auto neg_idx_except_fun = scope.find("neg_idx_except_fun");
-        builder->create_call(neg_idx_except_fun, {});
+        auto neg_idx_except_fun = scope.find("neg_idx_except");
+        builder->create_call(static_cast<Function *>(neg_idx_except_fun), {});
 
         if(tmp_Function->get_return_type()->is_void_type()){
             builder->create_void_ret();
@@ -466,7 +463,7 @@ void CminusfBuilder::visit(ASTVar &node) {
             auto load = builder->create_load(value);
             ptr = builder->create_gep(load, {expr});
         }
-        else if(value->get_type()->is_array_type()){
+        else if(value->get_type()->get_pointer_element_type()->is_array_type()){
             ptr = builder->create_gep(value, {CONST_INT(0), expr});
         }
         else{
@@ -612,7 +609,7 @@ void CminusfBuilder::visit(ASTTerm &node) {
 }
 
 void CminusfBuilder::visit(ASTCall &node) { 
-    Function * call_fun = static_cast<Function *>(scope.find(node.id));
+    Function* call_fun = static_cast<Function *>(scope.find(node.id));
     std::vector<Value*> args;
     auto arg_type_iter = call_fun->get_function_type()->param_begin();
 
@@ -633,5 +630,5 @@ void CminusfBuilder::visit(ASTCall &node) {
         arg_type_iter++;
     }
 
-    tmp_Value = builder->create_call(call_fun, args);
+    tmp_Value = builder->create_call(static_cast<Function *>(call_fun), args);
 }
