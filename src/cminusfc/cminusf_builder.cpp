@@ -247,13 +247,26 @@ void CminusfBuilder::visit(ASTFunDeclaration &node) {
         builder->create_store(args[i], argAlloc);
 
         // push <id, value> into current scope
-        if(!scope.push(ids[i], args[i])){
+        if(!scope.push(ids[i], argAlloc)){
             LOG(ERROR) << "argument name declared twice in this function";
             return;
         }
     }
 
     node.compound_stmt->accept(*this);
+
+    if(builder->get_insert_block()->get_terminator() == nullptr){
+        if(function->get_return_type()->is_void_type()){
+            builder->create_void_ret();
+        }
+        else if(function->get_return_type()->is_integer_type()){
+            builder->create_ret(CONST_INT(0));
+        }
+        else{
+            builder->create_ret(CONST_FP(0.));
+        }
+    }
+
     scope.exit();
 }
 
@@ -629,7 +642,7 @@ void CminusfBuilder::visit(ASTCall &node) {
             if(*arg_type_iter == TyInt32){
                 TypeTansfer(TYPE_INT, value, builder); 
             }
-            else if(*arg_type_iter == TyFloat){
+            else{
                 TypeTansfer(TYPE_FLOAT, value, builder);
             }
         }
