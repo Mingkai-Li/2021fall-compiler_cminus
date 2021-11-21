@@ -436,8 +436,8 @@ void CminusfBuilder::visit(ASTVar &node) {
 
         is_neg = builder->create_icmp_lt(expr, CONST_INT(0));
         
-        auto neg_bb = BasicBlock::create(module.get(), "neg_bb", tmp_Function);
-        auto pos_bb = BasicBlock::create(module.get(), "pos_bb", tmp_Function);
+        auto neg_bb = BasicBlock::create(module.get(), "", tmp_Function);
+        auto pos_bb = BasicBlock::create(module.get(), "", tmp_Function);
         builder->create_cond_br(is_neg, neg_bb, pos_bb);
 
         // neg_bb
