@@ -363,6 +363,10 @@ void CminusfBuilder::visit(ASTIterationStmt &node) {
     
     Value* cond;
 
+    if(builder->get_insert_block()->get_terminator() == nullptr){
+        builder->create_br(whileBB);
+    }
+
     builder->set_insert_point(whileBB);
     node.expression->accept(*this);
 
@@ -413,16 +417,20 @@ void CminusfBuilder::visit(ASTVar &node) {
     bool flag = is_lvalue;
     is_lvalue = false;
 
+    bool is_int = value->get_type()->get_pointer_element_type()->is_integer_type();
+    bool is_fp = value->get_type()->get_pointer_element_type()->is_float_type();
+    bool is_ptr = value->get_type()->get_pointer_element_type()->is_pointer_type();
+
     if(node.expression == nullptr){
         if(flag){
             tmp_Value = value;
         }
         else{
-            if(value->get_type()->get_pointer_element_type()->is_array_type()){
-                tmp_Value = builder->create_gep(value, {CONST_INT(0), CONST_INT(0)});
+            if(is_int || is_fp || is_ptr){
+                tmp_Value = builder->create_load(value);
             }
             else{
-                tmp_Value = builder->create_load(value);
+                tmp_Value = builder->create_gep(value, {CONST_INT(0), CONST_INT(0)});
             }
         }
     }
@@ -459,15 +467,15 @@ void CminusfBuilder::visit(ASTVar &node) {
         builder->set_insert_point(pos_bb);
         Value* ptr;
 
-        if(value->get_type()->get_pointer_element_type()->is_pointer_type()){
+        if(is_ptr){
             auto load = builder->create_load(value);
             ptr = builder->create_gep(load, {expr});
         }
-        else if(value->get_type()->get_pointer_element_type()->is_array_type()){
-            ptr = builder->create_gep(value, {CONST_INT(0), expr});
+        else if(is_int || is_fp){
+            ptr = builder->create_gep(value, {expr});
         }
         else{
-            ptr = builder->create_gep(value, {expr});
+            ptr = builder->create_gep(value, {CONST_INT(0), expr});
         }
 
         if(flag){
