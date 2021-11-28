@@ -148,9 +148,128 @@ CFGNodePtr LoopSearch::find_loop_base(
 
 
 ### Mem2reg
-1. ...
-2. ...
-3. ...
+
+#### 1
+
+请**简述**概念：支配性、严格支配性、直接支配性、支配边界。
+
+**Answer:**
+
+- 支配性
+  - a∈Dom(n) 当且仅当 即若从初始结点起，每条到达n的路径，都必然经过a
+- 严格支配性
+  - a严格支配n 当且仅当 a∈Dom(n)，且a≠n
+- 直接支配性
+  - a=IDom(n)，当且仅当 a在CFG中是离n最近的，严格支配n的节点
+- 支配边界
+  - a∈DF(n),当且仅当
+  1.  在CFG中，a有多个前驱节点（a是汇合点）（含于2,3条）
+  2.  n支配a的一个前驱节点
+  3.  n不严格支配a
+
+
+#### 2
+
+`phi`节点是SSA的关键特征，请**简述**`phi`节点的概念，以及引入`phi`节点的理由。
+
+**Answer:**
+
+- 概念
+  - 是一个声明语句：在汇合节点，从多个前驱节点中选择正确的SSA变量名的函数
+- 理由
+  - SSA形式下，不同位置上的同一个变量的定值，将对应不同的变量名
+  - CFG中，若一个汇合节点的多个前驱节点中都有对某变量（如x）的定值，则在ssa形式下将会产生多个x对应的变量名，则在该汇合节点引用变量x时，就必须在这些变量名间做出选择
+
+
+#### 3
+
+下面给出的`cminus`代码显然不是SSA的，后面是使用lab3的功能将其生成的LLVM IR（**未加任何Pass**），说明对一个变量的多次赋值变成了什么形式？
+
+**Answer:**
+
+- 对每一条赋值语句，产生了一个新的变量
+  - 该新变量替代了：该赋值语句中的左值，以及旧变量在后续语句中的出现
+- 对同一个变量的多次赋值，产生了对应的一系列新变量
+
+#### 4
+
+对下面给出的`cminus`程序，使用lab3的功能，分别关闭/开启`Mem2Reg`生成LLVM IR。对比生成的两段LLVM IR，开启`Mem2Reg`后，每条`load`, `store`指令发生了变化吗？变化或者没变化的原因是什么？请分类解释。
+
+**Answer:**
+
+- func()内
+ - 对函数参数的store和load，变化没了
+   - 即不将函数另外store于新空间，故在使用时也不需再load出来
+ - if语句内对x的sotre，变化没了
+   - x=0的常量赋值，通过在后续的基本块中的phi函数实现
+ - 函数返回时对x的load，变化没了
+   - 通过phi函数实现定值
+- main()内
+ - 对全局变量globVar的赋值store和读取load，没有变化
+ - 对数组元素的赋值store，没有变化
+ - 对变量b的load和store，变化没了
+   - main中，变量b被定值为常量，并仅在过程调用时作为参数传递时引用
+   - 故在常量合并，死代码删除优化后变没了
+
+
+#### 5
+
+指出放置phi节点的代码，并解释是如何使用支配树的信息的。需要给出代码中的成员变量或成员函数名称。
+
+**Answer:**
+
+- 代码如下
+```C++
+    std::map<std::pair<BasicBlock *,Value *>, bool> bb_has_var_phi; // bb has phi for var
+    for (auto var : global_live_var_name )
+    {
+        std::vector<BasicBlock *> work_list;
+        work_list.assign(live_var_2blocks[var].begin(), live_var_2blocks[var].end());
+        for (int i =0 ; i < work_list.size() ; i++ )
+        {   
+            auto bb = work_list[i];
+            for ( auto bb_dominance_frontier_bb : dominators_->get_dominance_frontier(bb))
+            {
+                if ( bb_has_var_phi.find({bb_dominance_frontier_bb, var}) == bb_has_var_phi.end() )
+                { 
+                    // generate phi for bb_dominance_frontier_bb & add bb_dominance_frontier_bb to work list
+                    auto phi = PhiInst::create_phi(var->get_type()->get_pointer_element_type(), bb_dominance_frontier_bb);
+                    phi->set_lval(var);
+                    bb_dominance_frontier_bb->add_instr_begin( phi );
+                    work_list.push_back( bb_dominance_frontier_bb );
+                    bb_has_var_phi[{bb_dominance_frontier_bb, var}] = true;
+                }
+            }
+        }
+    }
+```
+- 其中if语句内部执行了实际的插入操作
+  - 创建phi函数，并设置左值var
+  - 将指令插入到基本快的开始处
+  - 再将本基本快加入work_list集合（因为刚刚插入的phi函数，也是对变量var的一个定值语句
+```c++
+auto phi = PhiInst::create_phi(var->get_type()->get_poi
+phi->set_lval(var);
+bb_dominance_frontier_bb->add_instr_begin( phi );
+work_list.push_back( bb_dominance_frontier_bb );
+bb_has_var_phi[{bb_dominance_frontier_bb, var}] = true;
+```
+
+- 支配树信息：代码通过支配树，得到了基本块的支配边界对应的基本块集合
+```C++
+auto bb_dominance_frontier_bb : dominators_->get_dominance_frontier(bb)
+```
+- 成员变量：dominators_
+  - Mem2Reg的私有成员，是一个class Dominators类实例
+  - 对应当前正在处理的基本块的支配树
+- 成员函数：get_dominance_frontier(bb)
+  - class Dominators类的公有方法，由成员变量dominators_调用
+  - 得到基本块bb的支配边界对应的基本块集（通过bb_dominance_frontier_bb遍历）
+
+
+
+
+
 
 ### 代码阅读总结
 
