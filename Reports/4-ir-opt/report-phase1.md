@@ -219,7 +219,7 @@ CFGNodePtr LoopSearch::find_loop_base(
 **Answer:**
 
 - 代码如下
-```C++
+```cpp
     std::map<std::pair<BasicBlock *,Value *>, bool> bb_has_var_phi; // bb has phi for var
     for (auto var : global_live_var_name )
     {
@@ -246,8 +246,8 @@ CFGNodePtr LoopSearch::find_loop_base(
 - 其中if语句内部执行了实际的插入操作
   - 创建phi函数，并设置左值var
   - 将指令插入到基本快的开始处
-  - 再将本基本快加入work_list集合（因为刚刚插入的phi函数，也是对变量var的一个定值语句
-```c++
+  - 再将本基本快加入work_list集合（因为刚刚插入的phi函数，也是对变量var的一个定值语句）
+```cpp
 auto phi = PhiInst::create_phi(var->get_type()->get_poi
 phi->set_lval(var);
 bb_dominance_frontier_bb->add_instr_begin( phi );
@@ -256,7 +256,7 @@ bb_has_var_phi[{bb_dominance_frontier_bb, var}] = true;
 ```
 
 - 支配树信息：代码通过支配树，得到了基本块的支配边界对应的基本块集合
-```C++
+```cpp
 auto bb_dominance_frontier_bb : dominators_->get_dominance_frontier(bb)
 ```
 - 成员变量：dominators_
