@@ -1,6 +1,6 @@
 #include "ActiveVars.hpp"
-#define IS_CONST_INT(value) (dynamic_cast<ConstantInt*>(value)==nullptr)
-#define IS_CONST_FP(value) (dynamic_cast<ConstantFP*>(value)==nullptr)
+#define IS_CONST_INT(value) (dynamic_cast<ConstantInt*>(value) != nullptr)
+#define IS_CONST_FP(value) (dynamic_cast<ConstantFP*>(value) != nullptr)
 #define IS_CONST(value) (IS_CONST_INT(value) || IS_CONST_FP(value))
 
 void ActiveVars::run()
@@ -45,12 +45,10 @@ void ActiveVars::run()
                             if(!IS_CONST(right_value) && def.find(right_value) == def.end()){
                                 if(phi_use.find(pre_bb) == phi_use.end()){
                                     std::set<Value*> new_set;
-                                    new_set.insert(right_value);
                                     phi_use.insert({pre_bb, new_set});
                                 }
-                                else{
-                                    phi_use[pre_bb].insert(right_value);
-                                }
+                                
+                                phi_use[pre_bb].insert(right_value);
                             }
                         }
                     }
@@ -58,6 +56,18 @@ void ActiveVars::run()
                         if(inst->is_br()){
                             if(dynamic_cast<BranchInst*>(inst)->is_cond_br()){
                                 Value* right_value = inst->get_operand(0);
+                                if(!IS_CONST(right_value) && def.find(right_value) == def.end()){
+                                    use.insert(right_value);
+                                }
+                            }
+                        }
+                        else if(inst->is_call()){
+                            bool first = true;
+                            for(auto right_value : inst->get_operands()){
+                                if(first){
+                                    first = false;
+                                    continue;
+                                }
                                 if(!IS_CONST(right_value) && def.find(right_value) == def.end()){
                                     use.insert(right_value);
                                 }
@@ -106,17 +116,21 @@ void ActiveVars::run()
                     }
 
                     // live_in[bb]
+                    std::set<Value*> live_in_before;
+                    live_in_before.insert(live_in[bb].begin(), live_in[bb].end());
+
+                    for(auto value : live_out[bb]){
+                        live_in[bb].insert(value);
+                    }
                     for(auto value : bb2def[bb]){
-                        if(live_in[bb].find(value) != live_in[bb].end()){
-                            flag = true;
-                            live_in[bb].erase(value);
-                        }
+                        live_in[bb].erase(value);
                     }
                     for(auto value : bb2use[bb]){
-                        if(live_in[bb].find(value) == live_in[bb].end()){
-                            flag = true;
-                            live_in[bb].insert(value);
-                        }
+                        live_in[bb].insert(value);
+                    }
+
+                    if(live_in[bb] != live_in_before){
+                        flag = true;
                     }
                 }
             }

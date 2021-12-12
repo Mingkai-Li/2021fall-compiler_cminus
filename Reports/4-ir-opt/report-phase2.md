@@ -338,7 +338,7 @@ label74:                                                ; preds = %label2
 
 1. 是变量集合，所以如果是常量，不加入该集合；
 2. def集合是语句左值的集合，有以下三个语句由于没有左值，不记录Instruction的返回值：(1)terminator，`br`和`ret`语句；(2)`store`语句；
-3. use集合从instruction的操作数中取值，不考虑`phi`语句。对于`br`语句，如果是条件跳转，第一个操作数是变量，其他是label。对于其他语句，操作数（可能没有）都是变量；
+3. use集合从instruction的操作数中取值，不考虑`phi`语句。对于`br`语句，如果是条件跳转，第一个操作数是变量，其他是label。对于其他语句，操作数（可能没有）都是变量；对于`call`语句，由于其第一个操作数是lable，故对其除了第一个操作数之外的其他操作数进行处理。
 4. phi_use集合从phi的操作数中取值，需要记录变量对应的label。在操作数中，变量和对应的label先后依次出现。
 
 二次遍历，执行ppt上伪代码：
@@ -375,12 +375,10 @@ $`OUT[B] =\cup_{s是B的后继}IN[S]\cup_{s是B的后继} phi\_uses[S,B]`$。
                             if(!IS_CONST(right_value) && def.find(right_value) == def.end()){
                                 if(phi_use.find(pre_bb) == phi_use.end()){
                                     std::set<Value*> new_set;
-                                    new_set.insert(right_value);
                                     phi_use.insert({pre_bb, new_set});
                                 }
-                                else{
-                                    phi_use[pre_bb].insert(right_value);
-                                }
+                                
+                                phi_use[pre_bb].insert(right_value);
                             }
                         }
                     }
@@ -388,6 +386,18 @@ $`OUT[B] =\cup_{s是B的后继}IN[S]\cup_{s是B的后继} phi\_uses[S,B]`$。
                         if(inst->is_br()){
                             if(dynamic_cast<BranchInst*>(inst)->is_cond_br()){
                                 Value* right_value = inst->get_operand(0);
+                                if(!IS_CONST(right_value) && def.find(right_value) == def.end()){
+                                    use.insert(right_value);
+                                }
+                            }
+                        }
+                        else if(inst->is_call()){
+                            bool first = true;
+                            for(auto right_value : inst->get_operands()){
+                                if(first){
+                                    first = false;
+                                    continue;
+                                }
                                 if(!IS_CONST(right_value) && def.find(right_value) == def.end()){
                                     use.insert(right_value);
                                 }
@@ -440,17 +450,21 @@ $`OUT[B] =\cup_{s是B的后继}IN[S]\cup_{s是B的后继} phi\_uses[S,B]`$。
                     }
 
                     // live_in[bb]
+                    std::set<Value*> live_in_before;
+                    live_in_before.insert(live_in[bb].begin(), live_in[bb].end());
+
+                    for(auto value : live_out[bb]){
+                        live_in[bb].insert(value);
+                    }
                     for(auto value : bb2def[bb]){
-                        if(live_in[bb].find(value) != live_in[bb].end()){
-                            flag = true;
-                            live_in[bb].erase(value);
-                        }
+                        live_in[bb].erase(value);
                     }
                     for(auto value : bb2use[bb]){
-                        if(live_in[bb].find(value) == live_in[bb].end()){
-                            flag = true;
-                            live_in[bb].insert(value);
-                        }
+                        live_in[bb].insert(value);
+                    }
+
+                    if(live_in[bb] != live_in_before){
+                        flag = true;
                     }
                 }
             }
