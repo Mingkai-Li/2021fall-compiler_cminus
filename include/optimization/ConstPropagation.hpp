@@ -22,10 +22,90 @@ class ConstFolder
 {
 public:
     ConstFolder(Module *m) : module_(m) {}
-    ConstantInt *compute(
-        Instruction::OpID op,
-        ConstantInt *value1,
-        ConstantInt *value2);
+
+    Constant *compute(Instruction *instr);
+
+    //inline method
+    Constant *compute_cmp(
+        CmpInst::CmpOp cmp_op, int lhs, int rhs){
+            switch (cmp_op)
+            {
+                case CmpInst::CmpOp::EQ:
+                {
+                    return ConstantInt::get(lhs == rhs, module_);
+                    break;
+                }
+                case CmpInst::CmpOp::NE:
+                {
+                    return ConstantInt::get(lhs != rhs, module_);
+                    break;
+                }
+                case CmpInst::CmpOp::GT:
+                {
+                    return ConstantInt::get(lhs > rhs, module_);
+                    break;
+                }
+                case CmpInst::CmpOp::GE:
+                {
+                    return ConstantInt::get(lhs >= rhs, module_);
+                    break;
+                }
+                case CmpInst::CmpOp::LT:
+                {
+                    return ConstantInt::get(lhs < rhs, module_);
+                    break;
+                }
+                case CmpInst::CmpOp::LE:
+                {
+                    return ConstantInt::get(lhs <= rhs, module_);
+                    break;
+                }
+                default:
+                    return nullptr;
+                    break;
+            }
+        }
+
+    Constant *compute_cmp(
+        FCmpInst::CmpOp cmp_op, float lhs, float rhs){
+            switch (cmp_op)
+            {
+                case FCmpInst::CmpOp::EQ:
+                {
+                    return ConstantInt::get(lhs == rhs, module_);
+                    break;
+                }
+                case FCmpInst::CmpOp::NE:
+                {
+                    return ConstantInt::get(lhs != rhs, module_);
+                    break;
+                }
+                case FCmpInst::CmpOp::GT:
+                {
+                    return ConstantInt::get(lhs > rhs, module_);
+                    break;
+                }
+                case FCmpInst::CmpOp::GE:
+                {
+                    return ConstantInt::get(lhs >= rhs, module_);
+                    break;
+                }
+                case FCmpInst::CmpOp::LT:
+                {
+                    return ConstantInt::get(lhs < rhs, module_);
+                    break;
+                }
+                case FCmpInst::CmpOp::LE:
+                {
+                    return ConstantInt::get(lhs <= rhs, module_);
+                    break;
+                }
+                default:
+                    return nullptr;
+                    break;
+            }
+        }
+
     // ...
 private:
     Module *module_;
@@ -33,9 +113,12 @@ private:
 
 class ConstPropagation : public Pass
 {
+private:
+    ConstFolder* const_folder_;
 public:
     ConstPropagation(Module *m) : Pass(m) {}
     void run();
+    void run_bb(BasicBlock *bb);
 };
 
 #endif
