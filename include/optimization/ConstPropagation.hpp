@@ -25,6 +25,10 @@ public:
 
     Constant *compute(Instruction *instr);
 
+    // ...
+private:
+    Module *module_;
+
     //inline method
     Constant *compute_cmp(
         CmpInst::CmpOp cmp_op, int lhs, int rhs){
@@ -106,19 +110,17 @@ public:
             }
         }
 
-    // ...
-private:
-    Module *module_;
 };
 
 class ConstPropagation : public Pass
 {
 private:
     ConstFolder* const_folder_;
+    void run_bb(BasicBlock *bb);
 public:
     ConstPropagation(Module *m) : Pass(m) {}
     void run();
-    void run_bb(BasicBlock *bb);
+    
 };
 
 #endif

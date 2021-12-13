@@ -6,8 +6,8 @@
 
 
 
-//return nullptr if not a const instr
-//return const* result if it's a const instr 
+//return nullptr if not a const expression instr
+//return const* result if it's a const expression instr 
 Constant *ConstFolder::compute(Instruction *instr)
 {    
     //check parameter
@@ -127,22 +127,16 @@ Constant *ConstFolder::compute(Instruction *instr)
 
 
 
-
-
 void ConstPropagation::run()
 {
     // 从这里开始吧！
     //init
     const_folder_ = new ConstFolder(m_);
-    //
+    //traverse all bb
     for (auto f : m_->get_functions()){
-        if (f->get_basic_blocks().size() == 0){
-                continue;
-            }
         for(auto bb: f->get_basic_blocks()){
             run_bb(bb);
         }
-            
     }
 }
 
@@ -173,8 +167,16 @@ void ConstPropagation::run_bb(BasicBlock *bb){
             if(const_rval != nullptr){    //const rval
                 //propagate to rest of the bb
                 auto lval = instr_store->get_lval();
-                for(auto pinstr_res = pinstr; pinstr_res != instrs.end(); pinstr_res++){
+                auto pinstr_res = pinstr;
+                pinstr_res++;   //skip current instr(instr_store)
+                for(; pinstr_res != instrs.end(); pinstr_res++){
                     auto instr_res = *pinstr_res;
+                    //another store to the same lval, stop propagation 
+                    auto instr_store_1 = dynamic_cast<StoreInst*>(instr_res);
+                    if(instr_store_1 != nullptr && instr_store_1->get_lval() == lval){
+                        break;
+                    }
+                    //load with same lval, propagate
                     auto instr_load = dynamic_cast<LoadInst*>(instr_res);
                     if(instr_load != nullptr && instr_load->get_lval() == lval){    //load lval
                         instr_load->replace_all_use_with(const_rval);
@@ -190,11 +192,10 @@ void ConstPropagation::run_bb(BasicBlock *bb){
         if(instr_br != nullptr && instr_br->is_cond_br()){      //br instr with cond 
             auto const_cond = dynamic_cast<ConstantInt*>(instr_br->get_operand(0)); 
             if(const_cond != nullptr){      //const cond
-            
                 auto if_true = dynamic_cast<BasicBlock*>(instr_br->get_operand(1));
                 auto if_false = dynamic_cast<BasicBlock*>(instr_br->get_operand(2));
                 instr_br->remove_operands(1, 2);
-
+                
                 if(const_cond->get_value()){    //if_true
                     instr_br->set_operand(0, if_true);
                     bb->remove_succ_basic_block(if_false);
@@ -205,10 +206,7 @@ void ConstPropagation::run_bb(BasicBlock *bb){
                     bb->remove_succ_basic_block(if_true);
                     if_true->remove_pre_basic_block(bb);
                 }
-
             }
-            
-
         }
 
     }
@@ -217,6 +215,5 @@ void ConstPropagation::run_bb(BasicBlock *bb){
     for(auto instr : instr2del){
         bb->delete_instr(instr);
     }
-
 
 }
